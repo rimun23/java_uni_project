@@ -7,14 +7,6 @@ import perudo.ui.ConsoleUI;
 
 import java.util.*;
 
-/**
- * Game.java (FULL)
- * - Account selection from PostgreSQL
- * - Shop before game (buy bonuses with coins)
- * - Bonuses are inventory-based (DB) and also limited to 1 use per match per player (PlayerWallet)
- *   * REROLL: reroll your dice (consumes 1 from DB)
- *   * PEEK: view one bot's dice (consumes 1 from DB)
- */
 public final class Game {
     private final List<Player> players;
     private final ConsoleUI ui;
@@ -68,7 +60,6 @@ public final class Game {
 
             Action action = p.chooseAction(ctx, ui);
 
-            // ===== BONUSES (do NOT end round; player continues choosing) =====
             if (action.kind() == ActionKinds.BONUS_REROLL) {
                 if (!(p instanceof HumanPlayer)) {
                     ui.println("Only humans can use bonuses.");
@@ -91,7 +82,7 @@ public final class Game {
                 w.decrementRerollLocal();
                 w.markRerollUsed();
 
-                p.roll(); // reroll only this player's dice
+                p.roll();
                 ui.println(p.name() + " used REROLL. New dice: " + p.cup().sortedString());
                 continue;
             }
@@ -138,7 +129,6 @@ public final class Game {
                 continue;
             }
 
-            // ===== NORMAL ACTIONS =====
             if (action.kind() == ActionKinds.BID) {
                 Bid bid = action.bid();
 
@@ -156,7 +146,6 @@ public final class Game {
                 continue;
             }
 
-            // Can't call before first bid
             if (ctx.currentBid() == null) {
                 ui.println("You can't call before the first bid.");
                 continue;
@@ -193,10 +182,7 @@ public final class Game {
         }
         return fromIndex;
     }
-
-    // =====================================================================
-    //                         FACTORY (DB + SHOP)
-    // =====================================================================
+    
     public static Game createFromConsole(ConsoleUI ui) {
         Random rnd = new Random();
 
@@ -213,7 +199,7 @@ public final class Game {
 
         List<Player> players = new ArrayList<>();
 
-        // Humans: choose account -> optional shop -> build wallet from DB inventory
+        
         for (int i = 1; i <= humans; i++) {
             ui.println("\nSelect account for Human " + i + ":");
             Account acc = pickAccount(ui, accRepo);
@@ -224,7 +210,6 @@ public final class Game {
                 ShopService.openShop(ui, accRepo, bonusRepo, acc);
             }
 
-            // Reload account + inventory after shop
             Account fresh = accRepo.findByUsername(acc.getUsername());
             Map<String, Integer> inv = bonusRepo.getInventory(fresh.getId());
             PlayerWallet wallet = new PlayerWallet(fresh.getId(), inv);
@@ -232,13 +217,13 @@ public final class Game {
             players.add(new HumanPlayer(fresh.getUsername(), new DiceCup(5, rnd), wallet));
         }
 
-        // Bots
+        
         BotStrategy strategy = new SimpleBotStrategy(rnd);
         for (int i = 1; i <= bots; i++) {
             players.add(new BotPlayer("Bot" + i, new DiceCup(5, rnd), strategy));
         }
 
-        RuleEngine rules = new RuleEngine(5); // max dice (for exact reward cap)
+        RuleEngine rules = new RuleEngine(5);
         int startIndex = rnd.nextInt(players.size());
         return new Game(players, ui, rules, bonusRepo, startIndex);
     }
