@@ -2,8 +2,8 @@ package perudo.core;
 
 public final class Action {
     private final int kind;
-    private final Bid bid;      // only for BID
-    private final int target;   // only for PEEK (bot index), else -1
+    private final Bid bid; 
+    private final int target;
 
     private Action(int kind, Bid bid, int target) {
         this.kind = kind;
