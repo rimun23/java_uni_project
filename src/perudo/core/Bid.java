@@ -2,7 +2,7 @@ package perudo.core;
 
 public final class Bid {
     private final int quantity;
-    private final int face; // 1..6
+    private final int face;
 
     public Bid(int quantity, int face) {
         if (quantity < 1) throw new IllegalArgumentException("quantity must be >= 1");
