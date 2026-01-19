@@ -8,7 +8,6 @@ import java.util.List;
 public final class ShopService {
     private ShopService() {}
 
-    // цены — можешь поменять
     public static final int PRICE_REROLL = 30;
     public static final int PRICE_PEEK = 50;
 
