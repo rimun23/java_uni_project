@@ -56,7 +56,7 @@ public final class RoundContext {
                 if (face == 1) {
                     if (d == 1) count++;
                 } else {
-                    if (d == face || d == 1) count++; // ones wild
+                    if (d == face || d == 1) count++;
                 }
             }
         }
