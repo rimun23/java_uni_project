@@ -45,7 +45,6 @@ public final class RuleEngine {
         if (actual == bid.quantity()) {
             ui.println("Exactly correct! Bidder gains 1 die (up to max).");
             Player bidder = ctx.players().get(bidderIndex);
-            // maxDice enforcement is in Player via cup.maxDice(), but keep it consistent:
             bidder.gainDieUpToMax();
             ctx.setNextStarterIndex(callerIndex);
         } else {
