@@ -69,7 +69,6 @@ public class PgBonusRepository {
         }
     }
 
-    /** Decrease inventory by 1 if possible. Returns true if consumed. */
     public boolean consumeOne(long accountId, String bonusType) {
         String sql =
                 "UPDATE account_bonuses " + "SET quantity = quantity - 1 " + "WHERE account_id = ? AND bonus_type = ? AND quantity > 0";
