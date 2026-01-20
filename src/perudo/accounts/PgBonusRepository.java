@@ -1,6 +1,7 @@
 package perudo.accounts;
 import java.sql.*;
 import java.util.*;
+import perudo.db.*;
 public class PgBonusRepository {
     private final PgAccountRepository accountRepo;
     public PgBonusRepository(PgAccountRepository accountRepo){
@@ -9,7 +10,7 @@ public class PgBonusRepository {
     public Map<String, Integer> getInventory(long accountId) {
         String sql = "SELECT bonus_type, quantity FROM account_bonuses WHERE account_id = ?";
         Map<String, Integer> inv = new HashMap<>();
-        try (Connection connect = accountRepo.connect();
+        try (Connection connect = Db.getConnection();
              PreparedStatement prepSt = connect.prepareStatement(sql)) {
             prepSt.setLong(1, accountId);
             try (ResultSet rs = prepSt.executeQuery()) {

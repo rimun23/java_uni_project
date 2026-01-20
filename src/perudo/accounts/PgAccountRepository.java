@@ -1,6 +1,7 @@
 package perudo.accounts;
 import java.sql.*;
 import java.util.*;
+import perudo.db.*;
 public class PgAccountRepository {
     private final String url;
     private final String user;
@@ -11,7 +12,7 @@ public class PgAccountRepository {
         this.pass = pass;
     }
     Connection connect() throws SQLException{
-        return DriverManager.getConnection(url, user, pass);
+        return Db.getConnection();
     }
     public List<Account> findAll(){
         String sql = "SELECT id, username, coins FROM accounts ORDER BY username ASC";

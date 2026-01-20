@@ -2,11 +2,10 @@ package perudo.core;
 
 import perudo.accounts.*;
 import perudo.ai.*;
+import perudo.db.DbConfig;
 import perudo.players.*;
 import perudo.ui.ConsoleUI;
-
 import java.util.*;
-
 public final class Game {
     private final List<Player> players;
     private final ConsoleUI ui;
@@ -82,7 +81,7 @@ public final class Game {
                 w.decrementRerollLocal();
                 w.markRerollUsed();
 
-                p.roll();
+                p.roll(); // reroll only this player's dice
                 ui.println(p.name() + " used REROLL. New dice: " + p.cup().sortedString());
                 continue;
             }
@@ -105,8 +104,12 @@ public final class Game {
                 }
 
                 int target = action.target();
-                if (target < 0 || target >= ctx.players().size() || !ctx.players().get(target).isAlive()) {
+                if (target < 0 || target >= ctx.players().size()) {
                     ui.println("Invalid peek target.");
+                    continue;
+                }
+                if (!ctx.players().get(target).isAlive()) {
+                    ui.println("Target is not alive.");
                     continue;
                 }
                 if (!(ctx.players().get(target) instanceof BotPlayer)) {
@@ -128,7 +131,6 @@ public final class Game {
                         ctx.players().get(target).cup().sortedString());
                 continue;
             }
-
             if (action.kind() == ActionKinds.BID) {
                 Bid bid = action.bid();
 
@@ -182,16 +184,19 @@ public final class Game {
         }
         return fromIndex;
     }
-    
+
+    // =====================================================================
+    // FACTORY (DB CONFIG FROM DbConfig + ACCOUNT PICK + SHOP)
+    // =====================================================================
     public static Game createFromConsole(ConsoleUI ui) {
         Random rnd = new Random();
 
-        ui.println("PostgreSQL connection:");
-        String url  = ui.readNonEmpty("JDBC URL (e.g. jdbc:postgresql://localhost:5432/perudo): ");
-        String user = ui.readNonEmpty("DB user: ");
-        String pass = ui.readNonEmpty("DB password: ");
-
-        PgAccountRepository accRepo = new PgAccountRepository(url, user, pass);
+        // DB settings come from DbConfig (NO console prompts)
+        PgAccountRepository accRepo = new PgAccountRepository(
+                DbConfig.DB_URL,
+                DbConfig.DB_USER,
+                DbConfig.DB_PASSWORD
+        );
         PgBonusRepository bonusRepo = new PgBonusRepository(accRepo);
 
         int humans = ui.readInt("Humans (1..4): ", 1, 4);
@@ -199,7 +204,7 @@ public final class Game {
 
         List<Player> players = new ArrayList<>();
 
-        
+        // Humans: select account -> optional shop -> wallet from DB
         for (int i = 1; i <= humans; i++) {
             ui.println("\nSelect account for Human " + i + ":");
             Account acc = pickAccount(ui, accRepo);
@@ -210,6 +215,7 @@ public final class Game {
                 ShopService.openShop(ui, accRepo, bonusRepo, acc);
             }
 
+            // reload after shop
             Account fresh = accRepo.findByUsername(acc.getUsername());
             Map<String, Integer> inv = bonusRepo.getInventory(fresh.getId());
             PlayerWallet wallet = new PlayerWallet(fresh.getId(), inv);
@@ -217,7 +223,7 @@ public final class Game {
             players.add(new HumanPlayer(fresh.getUsername(), new DiceCup(5, rnd), wallet));
         }
 
-        
+        // Bots
         BotStrategy strategy = new SimpleBotStrategy(rnd);
         for (int i = 1; i <= bots; i++) {
             players.add(new BotPlayer("Bot" + i, new DiceCup(5, rnd), strategy));
@@ -240,17 +246,16 @@ public final class Game {
 
             ui.println("Accounts:");
             for (int i = 0; i < accounts.size(); i++) {
-                ui.println("  " + (i + 1) + ") " + accounts.get(i).getUsername() + " (coins: " + accounts.get(i).getCoins() + ")");
+                Account a = accounts.get(i);
+                ui.println("  " + (i + 1) + ") " + a.getUsername() + " (coins: " + a.getCoins() + ")");
             }
             ui.println("  " + (accounts.size() + 1) + ") Create new account");
 
             int choice = ui.readInt("Choose: ", 1, accounts.size() + 1);
-
             if (choice == accounts.size() + 1) {
                 String name = ui.readNonEmpty("New username: ");
                 return repo.createIfNotExists(name);
             }
-
             return accounts.get(choice - 1);
         }
     }
