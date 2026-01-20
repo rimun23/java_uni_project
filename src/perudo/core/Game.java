@@ -5,7 +5,9 @@ import perudo.ai.*;
 import perudo.db.DbConfig;
 import perudo.players.*;
 import perudo.ui.ConsoleUI;
+
 import java.util.*;
+
 public final class Game {
     private final List<Player> players;
     private final ConsoleUI ui;
@@ -36,12 +38,10 @@ public final class Game {
         ui.println("\n--- New Round ---");
         RoundContext ctx = new RoundContext(players);
 
-        // Roll for alive players
         for (Player p : players) {
             if (p.isAlive()) p.roll();
         }
 
-        // Show only humans their dice
         for (Player p : players) {
             if (p.isAlive() && p instanceof HumanPlayer) {
                 ui.println(p.name() + " dice: " + p.cup().sortedString());
@@ -50,8 +50,16 @@ public final class Game {
 
         int turn = currentIndex;
 
+        // ✅ Флаг: после бонуса ход остаётся у того же игрока
+        boolean repeatSamePlayer = false;
+
         while (true) {
-            turn = nextAliveIndex(turn);
+            if (!repeatSamePlayer) {
+                turn = nextAliveIndex(turn);
+            } else {
+                repeatSamePlayer = false; // сбрасываем, потому что сейчас повторяем того же игрока
+            }
+
             Player p = players.get(turn);
 
             ui.println("\nTurn: " + p.name() + " (dice: " + p.diceCount() + ")");
@@ -59,67 +67,81 @@ public final class Game {
 
             Action action = p.chooseAction(ctx, ui);
 
+            // ==========================================================
+            // BONUSES (ход НЕ переходит дальше; тот же игрок выбирает снова)
+            // ==========================================================
             if (action.kind() == ActionKinds.BONUS_REROLL) {
                 if (!(p instanceof HumanPlayer)) {
                     ui.println("Only humans can use bonuses.");
+                    repeatSamePlayer = true;
                     continue;
                 }
+
                 HumanPlayer hp = (HumanPlayer) p;
                 PlayerWallet w = hp.wallet();
 
                 if (!w.canUseReroll()) {
                     ui.println("REROLL not available (0 in inventory or already used this match).");
+                    repeatSamePlayer = true;
                     continue;
                 }
 
                 boolean consumed = bonusRepo.consumeOne(w.getAccountId(), BonusKinds.reroll);
                 if (!consumed) {
                     ui.println("REROLL not available in DB (inventory desync).");
+                    repeatSamePlayer = true;
                     continue;
                 }
 
                 w.decrementRerollLocal();
                 w.markRerollUsed();
 
-                p.roll(); // reroll only this player's dice
+                p.roll();
                 ui.println(p.name() + " used REROLL. New dice: " + p.cup().sortedString());
+
+                // ✅ тот же игрок ходит дальше
+                repeatSamePlayer = true;
                 continue;
             }
 
             if (action.kind() == ActionKinds.BONUS_PEEK) {
                 if (!(p instanceof HumanPlayer)) {
                     ui.println("Only humans can use bonuses.");
+                    repeatSamePlayer = true;
                     continue;
                 }
-                HumanPlayer hp = (HumanPlayer) p;
-                PlayerWallet w = hp.wallet();
 
                 if (!ctx.hasAliveBots()) {
                     ui.println("No alive bots to peek.");
+                    repeatSamePlayer = true;
                     continue;
                 }
+
+                HumanPlayer hp = (HumanPlayer) p;
+                PlayerWallet w = hp.wallet();
+
                 if (!w.canUsePeek()) {
                     ui.println("PEEK not available (0 in inventory or already used this match).");
+                    repeatSamePlayer = true;
                     continue;
                 }
 
                 int target = action.target();
                 if (target < 0 || target >= ctx.players().size()) {
                     ui.println("Invalid peek target.");
+                    repeatSamePlayer = true;
                     continue;
                 }
-                if (!ctx.players().get(target).isAlive()) {
-                    ui.println("Target is not alive.");
-                    continue;
-                }
-                if (!(ctx.players().get(target) instanceof BotPlayer)) {
-                    ui.println("You can peek only bots.");
+                if (!ctx.players().get(target).isAlive() || !(ctx.players().get(target) instanceof BotPlayer)) {
+                    ui.println("You can peek only an alive bot.");
+                    repeatSamePlayer = true;
                     continue;
                 }
 
                 boolean consumed = bonusRepo.consumeOne(w.getAccountId(), BonusKinds.peek);
                 if (!consumed) {
                     ui.println("PEEK not available in DB (inventory desync).");
+                    repeatSamePlayer = true;
                     continue;
                 }
 
@@ -129,15 +151,22 @@ public final class Game {
                 ui.println(p.name() + " used PEEK.");
                 ui.println("Peek " + ctx.players().get(target).name() + " dice: " +
                         ctx.players().get(target).cup().sortedString());
+
+                // ✅ тот же игрок ходит дальше
+                repeatSamePlayer = true;
                 continue;
             }
+
+            // ==========================================================
+            // NORMAL ACTIONS
+            // ==========================================================
             if (action.kind() == ActionKinds.BID) {
                 Bid bid = action.bid();
 
                 if (ctx.currentBid() != null && !bid.isHigherThan(ctx.currentBid())) {
                     if (p instanceof HumanPlayer) {
                         ui.println("Invalid bid. Must be higher than current bid.");
-                        continue; // retry
+                        continue;
                     } else {
                         bid = ctx.currentBid().nextMinimumBid();
                     }
@@ -191,7 +220,6 @@ public final class Game {
     public static Game createFromConsole(ConsoleUI ui) {
         Random rnd = new Random();
 
-        // DB settings come from DbConfig (NO console prompts)
         PgAccountRepository accRepo = new PgAccountRepository(
                 DbConfig.DB_URL,
                 DbConfig.DB_USER,
@@ -204,10 +232,13 @@ public final class Game {
 
         List<Player> players = new ArrayList<>();
 
-        // Humans: select account -> optional shop -> wallet from DB
+        // ✅ Нельзя выбрать один и тот же аккаунт дважды
+        Set<String> usedUsernames = new HashSet<>();
+
         for (int i = 1; i <= humans; i++) {
             ui.println("\nSelect account for Human " + i + ":");
-            Account acc = pickAccount(ui, accRepo);
+            Account acc = pickAccount(ui, accRepo, usedUsernames);
+            usedUsernames.add(acc.getUsername());
 
             ui.println("Enter shop before game? [Y/N]");
             String ans = ui.readLine().trim().toUpperCase();
@@ -215,7 +246,6 @@ public final class Game {
                 ShopService.openShop(ui, accRepo, bonusRepo, acc);
             }
 
-            // reload after shop
             Account fresh = accRepo.findByUsername(acc.getUsername());
             Map<String, Integer> inv = bonusRepo.getInventory(fresh.getId());
             PlayerWallet wallet = new PlayerWallet(fresh.getId(), inv);
@@ -223,7 +253,6 @@ public final class Game {
             players.add(new HumanPlayer(fresh.getUsername(), new DiceCup(5, rnd), wallet));
         }
 
-        // Bots
         BotStrategy strategy = new SimpleBotStrategy(rnd);
         for (int i = 1; i <= bots; i++) {
             players.add(new BotPlayer("Bot" + i, new DiceCup(5, rnd), strategy));
@@ -234,29 +263,47 @@ public final class Game {
         return new Game(players, ui, rules, bonusRepo, startIndex);
     }
 
-    private static Account pickAccount(ConsoleUI ui, PgAccountRepository repo) {
+    private static Account pickAccount(ConsoleUI ui, PgAccountRepository repo, Set<String> usedUsernames) {
         while (true) {
-            List<Account> accounts = repo.findAll();
+            List<Account> all = repo.findAll();
 
-            if (accounts.isEmpty()) {
-                ui.println("No accounts in DB. Create the first one.");
+            // показываем только невыбранные
+            List<Account> available = new ArrayList<>();
+            for (Account a : all) {
+                if (!usedUsernames.contains(a.getUsername())) {
+                    available.add(a);
+                }
+            }
+
+            if (available.isEmpty()) {
+                ui.println("All existing accounts already selected. Create a new one.");
                 String name = ui.readNonEmpty("New username: ");
+                if (usedUsernames.contains(name)) {
+                    ui.println("This username is already selected in this match.");
+                    continue;
+                }
                 return repo.createIfNotExists(name);
             }
 
-            ui.println("Accounts:");
-            for (int i = 0; i < accounts.size(); i++) {
-                Account a = accounts.get(i);
+            ui.println("Accounts (available):");
+            for (int i = 0; i < available.size(); i++) {
+                Account a = available.get(i);
                 ui.println("  " + (i + 1) + ") " + a.getUsername() + " (coins: " + a.getCoins() + ")");
             }
-            ui.println("  " + (accounts.size() + 1) + ") Create new account");
+            ui.println("  " + (available.size() + 1) + ") Create new account");
 
-            int choice = ui.readInt("Choose: ", 1, accounts.size() + 1);
-            if (choice == accounts.size() + 1) {
+            int choice = ui.readInt("Choose: ", 1, available.size() + 1);
+
+            if (choice == available.size() + 1) {
                 String name = ui.readNonEmpty("New username: ");
+                if (usedUsernames.contains(name)) {
+                    ui.println("This username is already selected in this match.");
+                    continue;
+                }
                 return repo.createIfNotExists(name);
             }
-            return accounts.get(choice - 1);
+
+            return available.get(choice - 1);
         }
     }
 }
