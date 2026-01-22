@@ -50,14 +50,13 @@ public final class Game {
 
         int turn = currentIndex;
 
-        // ✅ Флаг: после бонуса ход остаётся у того же игрока
         boolean repeatSamePlayer = false;
 
         while (true) {
             if (!repeatSamePlayer) {
                 turn = nextAliveIndex(turn);
             } else {
-                repeatSamePlayer = false; // сбрасываем, потому что сейчас повторяем того же игрока
+                repeatSamePlayer = false;
             }
 
             Player p = players.get(turn);
@@ -66,10 +65,7 @@ public final class Game {
             ui.println("Current bid: " + (ctx.currentBid() == null ? "none" : ctx.currentBid()));
 
             Action action = p.chooseAction(ctx, ui);
-
-            // ==========================================================
-            // BONUSES (ход НЕ переходит дальше; тот же игрок выбирает снова)
-            // ==========================================================
+            
             if (action.kind() == ActionKinds.BONUS_REROLL) {
                 if (!(p instanceof HumanPlayer)) {
                     ui.println("Only humans can use bonuses.");
@@ -99,8 +95,6 @@ public final class Game {
                 p.roll();
                 ui.println(p.name() + " used REROLL. New dice: " + p.cup().sortedString());
 
-                // ✅ тот же игрок ходит дальше
-                repeatSamePlayer = true;
                 continue;
             }
 
@@ -152,14 +146,10 @@ public final class Game {
                 ui.println("Peek " + ctx.players().get(target).name() + " dice: " +
                         ctx.players().get(target).cup().sortedString());
 
-                // ✅ тот же игрок ходит дальше
                 repeatSamePlayer = true;
                 continue;
             }
 
-            // ==========================================================
-            // NORMAL ACTIONS
-            // ==========================================================
             if (action.kind() == ActionKinds.BID) {
                 Bid bid = action.bid();
 
@@ -214,9 +204,6 @@ public final class Game {
         return fromIndex;
     }
 
-    // =====================================================================
-    // FACTORY (DB CONFIG FROM DbConfig + ACCOUNT PICK + SHOP)
-    // =====================================================================
     public static Game createFromConsole(ConsoleUI ui) {
         Random rnd = new Random();
 
@@ -232,7 +219,6 @@ public final class Game {
 
         List<Player> players = new ArrayList<>();
 
-        // ✅ Нельзя выбрать один и тот же аккаунт дважды
         Set<String> usedUsernames = new HashSet<>();
 
         for (int i = 1; i <= humans; i++) {
@@ -267,7 +253,6 @@ public final class Game {
         while (true) {
             List<Account> all = repo.findAll();
 
-            // показываем только невыбранные
             List<Account> available = new ArrayList<>();
             for (Account a : all) {
                 if (!usedUsernames.contains(a.getUsername())) {
