@@ -26,6 +26,7 @@ public final class RuleEngine {
             ctx.setNextStarterIndex(callerIndex);
         } else {
             ui.println("Bid is FALSE. Bidder loses 1 die.");
+
             ctx.players().get(bidderIndex).loseDie();
             ctx.setNextStarterIndex(bidderIndex);
         }

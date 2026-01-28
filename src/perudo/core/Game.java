@@ -14,14 +14,16 @@ public final class Game {
     private final RuleEngine rules;
     private final PgBonusRepository bonusRepo;
     private int currentIndex;
-
-    private Game(List<Player> players, ConsoleUI ui, RuleEngine rules, PgBonusRepository bonusRepo, int startIndex) {
+    private final PgAccountRepository accountRepo;
+    private Game(List<Player> players, ConsoleUI ui, RuleEngine rules, PgBonusRepository bonusRepo, int startIndex, PgAccountRepository accountRepo) {
         this.players = players;
         this.ui = ui;
         this.rules = rules;
         this.bonusRepo = bonusRepo;
         this.currentIndex = startIndex;
+        this.accountRepo = accountRepo;
     }
+    private static final int WIN_REWARD_COINS = 100; // можешь поменять
 
     public void play() {
         ui.println("=== PERUDO (Liar's Dice) ===");
@@ -32,6 +34,16 @@ public final class Game {
 
         Player winner = players.stream().filter(Player::isAlive).findFirst().orElse(null);
         ui.println("\nWinner: " + (winner != null ? winner.name() : "nobody"));
+
+        // ✅ reward coins
+        if (winner instanceof HumanPlayer) {
+            HumanPlayer hp = (HumanPlayer) winner;
+            long accountId = hp.wallet().getAccountId();
+
+            // нужен доступ к PgAccountRepository (создай поле или передай ссылку)
+            accountRepo.addCoins(accountId, WIN_REWARD_COINS);
+            ui.println("Reward: +" + WIN_REWARD_COINS + " coins to " + winner.name());
+        }
     }
 
     private void playRound() {
@@ -56,7 +68,7 @@ public final class Game {
             if (!repeatSamePlayer) {
                 turn = nextAliveIndex(turn);
             } else {
-                repeatSamePlayer = false;
+                repeatSamePlayer = false; // сбрасываем, потому что сейчас повторяем того же игрока
             }
 
             Player p = players.get(turn);
@@ -65,7 +77,7 @@ public final class Game {
             ui.println("Current bid: " + (ctx.currentBid() == null ? "none" : ctx.currentBid()));
 
             Action action = p.chooseAction(ctx, ui);
-            
+
             if (action.kind() == ActionKinds.BONUS_REROLL) {
                 if (!(p instanceof HumanPlayer)) {
                     ui.println("Only humans can use bonuses.");
@@ -95,6 +107,7 @@ public final class Game {
                 p.roll();
                 ui.println(p.name() + " used REROLL. New dice: " + p.cup().sortedString());
 
+                repeatSamePlayer = true;
                 continue;
             }
 
@@ -207,13 +220,8 @@ public final class Game {
     public static Game createFromConsole(ConsoleUI ui) {
         Random rnd = new Random();
 
-        PgAccountRepository accRepo = new PgAccountRepository(
-                DbConfig.DB_URL,
-                DbConfig.DB_USER,
-                DbConfig.DB_PASSWORD
-        );
+        PgAccountRepository accRepo = new PgAccountRepository();
         PgBonusRepository bonusRepo = new PgBonusRepository(accRepo);
-
         int humans = ui.readInt("Humans (1..4): ", 1, 4);
         int bots = ui.readInt("Bots (0..5): ", 0, 5);
 
@@ -246,7 +254,7 @@ public final class Game {
 
         RuleEngine rules = new RuleEngine(5);
         int startIndex = rnd.nextInt(players.size());
-        return new Game(players, ui, rules, bonusRepo, startIndex);
+        return new Game(players, ui, rules, bonusRepo, startIndex, accRepo);
     }
 
     private static Account pickAccount(ConsoleUI ui, PgAccountRepository repo, Set<String> usedUsernames) {

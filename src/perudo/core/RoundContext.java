@@ -33,7 +33,12 @@ public final class RoundContext {
     }
     public boolean hasAliveBots() {
         for (int i = 0; i < players.size(); i++) {
-            if (players.get(i).isAlive() && (players.get(i) instanceof BotPlayer)) return true;
+            if (players.get(i).isAlive() && (players.get(i) instanceof BotPlayer
+
+
+
+
+            )) return true;
         }
         return false;
     }
