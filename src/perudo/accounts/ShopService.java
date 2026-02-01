@@ -25,17 +25,15 @@ public final class ShopService {
         PgRoleRepository roleRepo = new PgRoleRepository();
 
         while (true) {
-            // refresh account (coins can change)
             Account fresh = safeReloadAccount(accRepo, account.getUsername());
             if (fresh != null) account = fresh;
 
             int coins = account.getCoins();
             Map<String, Integer> inv = safeInventory(bonusRepo, accountId);
 
-            // ✅ роли подгружаем КАЖДЫЙ раз (чтобы всегда актуально)
             Set<String> roles = roleRepo.getRolesForAccount(accountId);
             boolean isAdmin = roles.contains(RoleKinds.ADMIN);
-            boolean isManager = roles.contains(RoleKinds.MANAGER) || isAdmin; // admin тоже менеджер по правам
+            boolean isManager = roles.contains(RoleKinds.MANAGER) || isAdmin;
 
             ui.println("\n=== SHOP ===");
             ui.println("Account: " + account.getUsername());
@@ -44,7 +42,6 @@ public final class ShopService {
             ui.println("Inventory: REROLL=" + inv.getOrDefault(BonusKinds.reroll, 0)
                     + ", PEEK=" + inv.getOrDefault(BonusKinds.peek, 0));
 
-            // Load products from DB catalog (JOIN categories)
             List<BonusProduct> products = loadCatalogProducts();
             if (products.isEmpty()) {
                 products = List.of(
@@ -53,12 +50,10 @@ public final class ShopService {
                 );
             }
 
-            // Group by category (lambda/streams requirement)
             Map<String, List<BonusProduct>> byCategory = products.stream()
                     .sorted(Comparator.comparing(BonusProduct::category).thenComparing(BonusProduct::displayName))
                     .collect(Collectors.groupingBy(BonusProduct::category, LinkedHashMap::new, Collectors.toList()));
 
-            // Build menu: number -> handler
             Map<Integer, Runnable> handlers = new HashMap<>();
             List<BonusProduct> flatMenu = new ArrayList<>();
 
@@ -86,7 +81,6 @@ public final class ShopService {
                 }
             }
 
-            // ✅ secured endpoints
             if (isManager) {
                 final int num = idx;
                 ui.println("\n" + num + ") [MANAGER] Grant coins to an account");
@@ -116,10 +110,6 @@ public final class ShopService {
             handler.run();
         }
     }
-
-    // -----------------------------
-    // Secured actions
-    // -----------------------------
     private static void handleGrantCoins(ConsoleUI ui, PgAccountRepository accRepo) {
         ui.println("\n=== GRANT COINS (MANAGER/ADMIN) ===");
         String targetUsername = ui.readNonEmpty("Target username: ");
@@ -159,9 +149,6 @@ public final class ShopService {
         ui.println(ok ? "Deleted." : "Delete failed.");
     }
 
-    // -----------------------------
-    // Helpers
-    // -----------------------------
     private static Account safeReloadAccount(PgAccountRepository accRepo, String username) {
         try {
             return accRepo.findByUsername(username);
@@ -178,10 +165,6 @@ public final class ShopService {
         }
     }
 
-    /**
-     * JOIN example:
-     * bonus_catalog + bonus_categories => category_name, bonus_code, display_name, price
-     */
     private static List<BonusProduct> loadCatalogProducts() {
         String sql =
                 "SELECT c.category_name, p.bonus_code, p.display_name, p.price " +
@@ -214,9 +197,6 @@ public final class ShopService {
         return res;
     }
 
-    // -----------------------------
-    // Small immutable model
-    // -----------------------------
     private static final class BonusProduct {
         private final String category;
         private final String code;
