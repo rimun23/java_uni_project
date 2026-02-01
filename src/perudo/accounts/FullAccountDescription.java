@@ -8,7 +8,7 @@ public final class FullAccountDescription {
     private final String username;
     private final int coins;
     private final List<String> roles;
-    private final Map<String, Integer> bonuses; // bonus_code -> quantity
+    private final Map<String, Integer> bonuses;
 
     public FullAccountDescription(long accountId, String username, int coins,
                                   List<String> roles, Map<String, Integer> bonuses) {
