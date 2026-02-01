@@ -9,7 +9,6 @@ public abstract class Player {
     private final DiceCup cup;
     private int diceCount;
 
-    // one-time bonuses per game
     private boolean rerollUsed = false;
     private boolean peekUsed = false;
 
@@ -35,7 +34,6 @@ public abstract class Player {
     public DiceCup cup() { return cup; }
     public int diceCount() { return diceCount; }
 
-    // ===== bonuses =====
     public boolean canReroll() { return !rerollUsed && isAlive(); }
     public boolean canPeek() { return !peekUsed && isAlive(); }
 
