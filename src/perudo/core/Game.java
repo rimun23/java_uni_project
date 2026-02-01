@@ -23,8 +23,7 @@ public final class Game {
         this.currentIndex = startIndex;
         this.accountRepo = accountRepo;
     }
-    private static final int WIN_REWARD_COINS = 100; // можешь поменять
-
+    private static final int WIN_REWARD_COINS = 100;
     public void play() {
         ui.println("=== PERUDO (Liar's Dice) ===");
 
@@ -35,12 +34,10 @@ public final class Game {
         Player winner = players.stream().filter(Player::isAlive).findFirst().orElse(null);
         ui.println("\nWinner: " + (winner != null ? winner.name() : "nobody"));
 
-        // ✅ reward coins
         if (winner instanceof HumanPlayer) {
             HumanPlayer hp = (HumanPlayer) winner;
             long accountId = hp.wallet().getAccountId();
 
-            // нужен доступ к PgAccountRepository (создай поле или передай ссылку)
             accountRepo.addCoins(accountId, WIN_REWARD_COINS);
             ui.println("Reward: +" + WIN_REWARD_COINS + " coins to " + winner.name());
         }
@@ -68,7 +65,7 @@ public final class Game {
             if (!repeatSamePlayer) {
                 turn = nextAliveIndex(turn);
             } else {
-                repeatSamePlayer = false; // сбрасываем, потому что сейчас повторяем того же игрока
+                repeatSamePlayer = false;
             }
 
             Player p = players.get(turn);
