@@ -6,10 +6,6 @@ import java.sql.*;
 import java.util.*;
 
 public final class PgAccountRepository {
-
-    // -----------------------------
-    // Basic CRUD
-    // -----------------------------
     public List<Account> findAll() {
         String sql = "SELECT id, username, coins FROM accounts ORDER BY username ASC";
         List<Account> res = new ArrayList<>();
@@ -59,9 +55,6 @@ public final class PgAccountRepository {
         }
     }
 
-    // -----------------------------
-    // Coins (Win reward)
-    // -----------------------------
     public void addCoins(long accountId, int amount) {
         if (amount <= 0) throw new IllegalArgumentException("amount must be > 0");
         String sql = "UPDATE accounts SET coins = coins + ? WHERE id = ?";
@@ -75,9 +68,6 @@ public final class PgAccountRepository {
         }
     }
 
-    // -----------------------------
-    // Delete account (cascade)
-    // -----------------------------
     public boolean deleteByUsername(String username) {
         validateUsername(username);
         String sql = "DELETE FROM accounts WHERE username = ?";
@@ -90,9 +80,6 @@ public final class PgAccountRepository {
         }
     }
 
-    // -----------------------------
-    // JOIN: Full description (roles + inventory + catalog)
-    // -----------------------------
     public FullAccountDescription getFullAccountDescription(long accountId) {
         // One query with JOINs (like GetFullOrderDescription)
         String sql =
